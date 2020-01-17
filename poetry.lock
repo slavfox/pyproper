@@ -10,15 +10,18 @@ version = "1.13.2"
 pycparser = "*"
 
 [[package]]
-category = "main"
-description = "The PEX packaging toolchain."
-name = "pex"
+category = "dev"
+description = "A Python utility / library to sort Python imports."
+name = "isort"
 optional = false
-python-versions = ">=2.7,<3.9,!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*"
-version = "2.1.0"
+python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
+version = "4.3.21"
 
 [package.extras]
-subprocess = ["subprocess32 (>=3.2.7)"]
+pipfile = ["pipreqs", "requirementslib"]
+pyproject = ["toml"]
+requirements = ["pipreqs", "pip-api"]
+xdg_home = ["appdirs (>=1.4.0)"]
 
 [[package]]
 category = "main"
@@ -29,7 +32,7 @@ python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*, !=3.3.*"
 version = "2.19"
 
 [metadata]
-content-hash = "08982c5fc63a81b0fd400add78b64c605800d9d515205c7e1c53230ce0aa05c7"
+content-hash = "38fc098dacf49e7b88d618919e693798d124083c26ec989409201bb38ebb892d"
 python-versions = "^3.6,<3.9"
 
 [metadata.files]
@@ -68,9 +71,9 @@ cffi = [
     {file = "cffi-1.13.2-cp38-cp38-win_amd64.whl", hash = "sha256:2781e9ad0e9d47173c0093321bb5435a9dfae0ed6a762aabafa13108f5f7b2ba"},
     {file = "cffi-1.13.2.tar.gz", hash = "sha256:599a1e8ff057ac530c9ad1778293c665cb81a791421f46922d80a86473c13346"},
 ]
-pex = [
-    {file = "pex-2.1.0-py2.py3-none-any.whl", hash = "sha256:a89d263c47df771fc7b1309ba2be070fbe0de0b0f9716e9af84c021889ce8322"},
-    {file = "pex-2.1.0.tar.gz", hash = "sha256:74b49a7b96015af2c0765322b2a35ced0432ae5f3a58873425f0a34379133e0f"},
+isort = [
+    {file = "isort-4.3.21-py2.py3-none-any.whl", hash = "sha256:6e811fcb295968434526407adb8796944f1988c5b65e8139058f2014cbe100fd"},
+    {file = "isort-4.3.21.tar.gz", hash = "sha256:54da7e92468955c4fceacd0c86bd0ec997b0e1ee80d97f67c35a78b719dccab1"},
 ]
 pycparser = [
     {file = "pycparser-2.19.tar.gz", hash = "sha256:a988718abfad80b6b157acce7bf130a30876d27603738ac39f140993246b25b3"},
