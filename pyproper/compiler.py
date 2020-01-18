@@ -174,11 +174,8 @@ class Compiler:
                 [
                     'install_name_tool',
                     '-change',
-                    self._pylib_path,
-                    (
-                        f"@executable_path/lib/"
-                        f"{os.path.basename(self._pylib_path)}"
-                    ),
+                    f"@rpath/{self._pylib_path.name}",
+                    f"@executable_path/lib/{self._pylib_path.name}",
                     str(self._dist_path / self.program_name),
                 ],
                 stdout=subprocess.PIPE,
