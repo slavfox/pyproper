@@ -9,7 +9,11 @@ Pyproper compiler entry point.
 This module holds the Compiler class, which handles building the actual
 executable.
 """
+import logging
+import os
 import platform
+import shutil
+import subprocess
 import sys
 from distutils.ccompiler import CCompiler, new_compiler
 from distutils.sysconfig import (
@@ -17,11 +21,12 @@ from distutils.sysconfig import (
     get_python_inc,
     get_python_lib,
 )
-from os import path
 from pathlib import Path
 from typing import Union
 
 import cffi
+
+logger = logging.getLogger(__name__)
 
 pyproper_dir = Path(__file__).resolve().parent
 
@@ -37,8 +42,8 @@ class Compiler:
     def py_main(argc, argv):
         import sys
         sys.argv[:] = [ffi.string(argv[i]).decode() for i in range(argc)]
-        print(__file__)
-        return 1
+        print("Hello, World from Python {{}}!".format(sys.version))
+        return 0
     """
 
     C_ENTRY_POINT_SRC = f"""
@@ -75,7 +80,7 @@ class Compiler:
         if isinstance(libpython_dir, str):
             self.libpython_dir = Path(libpython_dir)
         else:
-            self.libpython_dir = libpython_dir
+            self.libpython_dir = libpython_dir or Path(sys.prefix) / 'bin'
 
         if isinstance(build_dir, str):
             self.build_dir = Path(build_dir)
@@ -83,8 +88,20 @@ class Compiler:
             self.build_dir = build_dir
 
         self._src_path: Path = self.build_dir / "src"
+        self._dist_path: Path = self.build_dir / "dist"
+        self._lib_path: Path = self._dist_path / "lib"
         self._entry_point_c_path: Path = self._src_path / "entry_point.c"
         self._executable_filename = f"{program_name}.c"
+        self._pylib = (
+            'pypy3-c'
+            if platform.python_implementation() == 'PyPy'
+            else 'libpython'
+        )
+        if os.name == "posix" and sys.platform == "darwin":
+            pylibname = f"lib{self._pylib}.dylib"
+        else:
+            raise NotImplementedError
+        self._pylib_path = self.libpython_dir / pylibname
 
         self.ffi_builder: cffi.FFI = self._make_ffi_builder()
         self._compiler: CCompiler = new_compiler(compiler)
@@ -99,7 +116,6 @@ class Compiler:
             self.C_ENTRY_POINT_SRC,
             include_dirs=[str(pyproper_dir)],
         )
-
         ffi_builder.embedding_init_code(self.PY_INIT_SRC.format())
         return ffi_builder
 
@@ -112,7 +128,7 @@ class Compiler:
         with (self._src_path / self._executable_filename).open("w") as f:
             f.write(self.C_EXECUTABLE_SRC)
 
-    def init_compiler(self):
+    def init_dependencies(self):
         py_inc = get_python_inc()
         platspec_py_inc = get_python_inc(plat_specific=1)
 
@@ -121,21 +137,60 @@ class Compiler:
         self._compiler.add_library_dir(get_python_lib())
 
         # Workaround for virtualenvs
+        self._lib_path.mkdir(parents=True, exist_ok=True)
         if sys.exec_prefix != sys.base_exec_prefix:
             self._compiler.add_include_dir(
-                path.join(sys.exec_prefix, "include")
+                os.path.join(sys.exec_prefix, "include")
             )
-            self._compiler.add_library_dir(path.join(sys.exec_prefix, "lib"))
+            self._compiler.add_library_dir(
+                os.path.join(sys.exec_prefix, "lib")
+            )
 
         if platform.python_implementation() == "PyPy":
-            # ToDo: this needs to be shipped
-            self._compiler.add_library("pypy-c")
+            shutil.rmtree(str(self._lib_path / "lib_pypy"), ignore_errors=True)
+            shutil.rmtree(
+                str(self._lib_path / "lib-python"), ignore_errors=True
+            )
+            logger.info(
+                f"Copying lib_pypy and lib-python from "
+                f"{self.libpython_dir.parent}"
+            )
+            shutil.copytree(
+                str(self.libpython_dir.parent / "lib_pypy"),
+                str(self._lib_path / "lib_pypy"),
+            )
+            shutil.copytree(
+                str(self.libpython_dir.parent / "lib-python"),
+                str(self._lib_path / "lib-python"),
+            )
+        logger.info(f"Copying {self._pylib_path} to lib/")
+        shutil.copy(str(self._pylib_path), str(self._dist_path / "lib"))
+        self._compiler.add_library_dir(str(self._dist_path / "lib"))
+        self._compiler.add_library(self._pylib)
+
+    def _fix_dylib_path(self):
+        if platform.system() == 'Darwin':
+            subprocess.run(
+                [
+                    'install_name_tool',
+                    '-change',
+                    self._pylib_path,
+                    (
+                        f"@executable_path/lib/"
+                        f"{os.path.basename(self._pylib_path)}"
+                    ),
+                    str(self._dist_path / self.program_name),
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                check=True,
+            )
         else:
-            self._compiler.add_library("python3.8")
+            raise NotImplementedError
 
     def compile(self, debug=False):
         self.output_sources()
-        self.init_compiler()
+        self.init_dependencies()
         objs = self._compiler.compile(
             [
                 str(self._entry_point_c_path),
@@ -144,14 +199,12 @@ class Compiler:
             debug=debug,
         )
         self._compiler.link_executable(
-            objs, self.program_name, str(self.build_dir / "dist")
+            objs, self.program_name, str(self._dist_path)
         )
+        self._fix_dylib_path()
 
 
 if __name__ == "__main__":
-    c = Compiler(
-        "pathlib",
-        Path("build"),
-        libpython_dir="/Users/fox/.pyenv/versions/pypy3.6-7.1.1/lib",
-    )
+    logging.basicConfig(level=logging.DEBUG)
+    c = Compiler("hello_world", Path("build"))
     c.compile(True)
